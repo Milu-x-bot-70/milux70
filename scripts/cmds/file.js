@@ -2,83 +2,91 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = {
-config: {
-name: "file",
-aliases: ["filecmd", "viewcode"],
-version: "1.6.0",
-author: "nexo_here",
-countDown: 5,
-role: 0,
-shortDescription: "View the source code (No Prefix)",
-category: "system",
-guide: { en: "file [commandName]" }
-},
+  config: {
+    name: "file",
+    aliases: ["filecmd", "viewcode"],
+    version: "1.7.0",
+    author: "nexo_here (Fixed by Milon)",
+    countDown: 5,
+    role: 2, // বটের নিয়ম অনুযায়ী ২ বা ৩ নম্বর রোল সাধারণত অ্যাডমিন/ওনারদের জন্য বরাদ্দ থাকে
+    shortDescription: "View the source code (No Prefix)",
+    category: "system",
+    guide: { en: "file [commandName]" }
+  },
 
-// Handles no prefix functionality
-onChat: async function ({ api, event, message }) {
-const { body, senderID } = event;
-const adminUID = "61555429546528"; // Authorized UID
+  // Handles no prefix functionality
+  onChat: async function ({ api, event }) {
+    const { body, senderID, threadID, messageID } = event;
 
-if (!body) return;
+    if (!body) return;
 
-const args = body.split(/\s+/);
-const trigger = args[0].toLowerCase();
+    const args = body.split(/\s+/);
+    const trigger = args[0].toLowerCase();
 
-// Check if the command is triggered without a prefix
-if (trigger === "file") {
-// Security Check
-if (senderID !== adminUID) {
-return message.reply("❌ | Access Denied: You are not authorized to use this command.");
-}
+    // Check if the command is triggered without a prefix
+    if (trigger === "file") {
+      
+      // --- [ 🔐 BOT ADMIN PERMISSION CHECK ] ---
+      // GoatBot এর গ্লোবাল কনফিগ থেকে অ্যাডমিনদের আইডি লিস্ট চেক করা হচ্ছে
+      const adminIDs = global.GoatBot?.config?.adminBot || [];
+      const isBotAdmin = adminIDs.includes(senderID);
 
-const cmdName = args[1];
-if (!cmdName) {
-return message.reply("⚠️ | Please provide a command name.\nExample: file chipay");
-}
+      if (!isBotAdmin) {
+        return api.sendMessage("❌ | Access Denied: This command is restricted to Bot Admins only.", threadID, messageID);
+      }
 
-const cmdPath = path.join(__dirname, `${cmdName}.js`);
+      const cmdName = args[1];
+      if (!cmdName) {
+        return api.sendMessage("⚠️ | Please provide a command name.\nExample: file media", threadID, messageID);
+      }
 
-if (!fs.existsSync(cmdPath)) {
-return message.reply(`❌ | Error: Command "${cmdName}.js" not found.`);
-}
+      const cmdPath = path.join(__dirname, `${cmdName}.js`);
 
-try {
-const code = fs.readFileSync(cmdPath, "utf8");
+      if (!fs.existsSync(cmdPath)) {
+        return api.sendMessage(`❌ | Error: Command "${cmdName}.js" not found.`, threadID, messageID);
+      }
 
-if (code.length > 19000) {
-return message.reply("⚠️ | File Limit: This code is too large to display.");
-}
+      try {
+        const code = fs.readFileSync(cmdPath, "utf8");
 
-return message.reply({
-body: `📄 | Source code of "${cmdName}.js":\n\n${code}`
-});
-} catch (err) {
-console.error(err);
-return message.reply("❌ | Error: Unable to read the file.");
-}
-}
-},
+        if (code.length > 19000) {
+          return api.sendMessage("⚠️ | File Limit: This code is too large to display.", threadID, messageID);
+        }
 
-// Also keeps onStart for prefix usage
-onStart: async function ({ args, message, event }) {
-const { senderID } = event;
-const adminUID = "61555429546528";
+        return api.sendMessage({
+          body: `📄 | Source code of "${cmdName}.js":\n\n${code}`
+        }, threadID, messageID);
+        
+      } catch (err) {
+        console.error(err);
+        return api.sendMessage("❌ | Error: Unable to read the file.", threadID, messageID);
+      }
+    }
+  },
 
-if (senderID !== adminUID) {
-return message.reply("❌ | Access Denied: Unauthorized UID.");
-}
+  // Keeps onStart for prefix usage
+  onStart: async function ({ api, args, event }) {
+    const { senderID, threadID, messageID } = event;
+    
+    // --- [ 🔐 BOT ADMIN PERMISSION CHECK ] ---
+    const adminIDs = global.GoatBot?.config?.adminBot || [];
+    const isBotAdmin = adminIDs.includes(senderID);
 
-const cmdName = args[0];
-if (!cmdName) return message.reply("⚠️ | Usage: file [commandName]");
+    if (!isBotAdmin) {
+      return api.sendMessage("❌ | Access Denied: Restricted to Bot Admins only.", threadID, messageID);
+    }
 
-const cmdPath = path.join(__dirname, `${cmdName}.js`);
-if (!fs.existsSync(cmdPath)) return message.reply(`❌ | Command "${cmdName}.js" not found.`);
+    const cmdName = args[0];
+    if (!cmdName) return api.sendMessage("⚠️ | Usage: file [commandName]", threadID, messageID);
 
-try {
-const code = fs.readFileSync(cmdPath, "utf8");
-return message.reply(`📄 | Source code of "${cmdName}.js":\n\n${code}`);
-} catch (err) {
-return message.reply("❌ | Error reading the file.");
-}
-}
+    const cmdPath = path.join(__dirname, `${cmdName}.js`);
+    if (!fs.existsSync(cmdPath)) return api.sendMessage(`❌ | Command "${cmdName}.js" not found.`, threadID, messageID);
+
+    try {
+      const code = fs.readFileSync(cmdPath, "utf8");
+      return api.sendMessage(`📄 | Source code of "${cmdName}.js":\n\n${code}`, threadID, messageID);
+    } catch (err) {
+      return api.sendMessage("❌ | Error reading the file.", threadID, messageID);
+    }
+  }
 };
